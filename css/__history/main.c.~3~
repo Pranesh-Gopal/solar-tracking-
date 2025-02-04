@@ -1,0 +1,98 @@
+#include <16F877A.h>
+#device ADC=10
+
+#FUSES NOWDT                    //No Watch Dog Timer
+#FUSES PUT                      //Power Up Timer
+#FUSES NOBROWNOUT               //No brownout reset
+#FUSES NOLVP                    //No low voltage prgming, B3(PIC16) or B5(PIC18) used for I/O
+
+#use delay(crystal=4MHz)
+
+#define LCD_ENABLE_PIN PIN_D2
+#define LCD_RS_PIN PIN_D0
+#define LCD_RW_PIN PIN_D1
+#define LCD_DATA4 PIN_D4
+#define LCD_DATA5 PIN_D5
+#define LCD_DATA6 PIN_D6
+#define LCD_DATA7 PIN_D7
+
+#include <lcd.c>
+
+// Motor control pins
+#define MOTOR_IN1 PIN_B0  // Connect to IN1 of L293D
+#define MOTOR_IN2 PIN_B1  // Connect to IN2 of L293D
+#define GREEN_LED PIN_B7  // Motor running LED
+#define RED_LED PIN_B6    // Motor stopped LED
+
+int16 LDR1, LDR2;
+int16 diff;
+const int16 threshold = 50; // Adjusted threshold for LDR difference
+
+void main()
+{
+   // Setup ADC
+   setup_adc_ports(ALL_ANALOG);
+   setup_adc(ADC_CLOCK_INTERNAL);
+   
+   // Initialize LCD
+   lcd_init();
+   
+   // Set motor control and LED pins as output
+   output_low(MOTOR_IN1);  // Stop motor initially
+   output_low(MOTOR_IN2);  // Stop motor initially
+   output_low(RED_LED);    // Red LED off initially
+   output_low(GREEN_LED);  // Green LED off initially
+   
+   while(TRUE)
+   {
+      // Read LDR1 (RA2)
+      set_adc_channel(2);
+      delay_ms(10);  // Wait for ADC to stabilize
+      LDR1 = read_adc();
+      
+      // Read LDR2 (RA3)
+      set_adc_channel(3);
+      delay_ms(10);  // Wait for ADC to stabilize
+      LDR2 = read_adc();
+      
+      // Calculate difference between LDRs
+      diff = abs(LDR1 - LDR2);
+      
+      // Display LDR values on LCD
+      lcd_gotoxy(1, 1);
+      printf(lcd_putc, "LDR1: %4lu", LDR1); // Display LDR1 value
+      lcd_gotoxy(1, 2);
+      printf(lcd_putc, "LDR2: %4lu", LDR2); // Display LDR2 value
+
+      // Check if difference is greater than or equal to the threshold
+      if(diff >= threshold)
+      {
+         // If LDR1 is greater than LDR2, move the motor in one direction
+         if(LDR1 > LDR2)
+         {
+            output_high(MOTOR_IN1);  // IN1 HIGH
+            output_low(MOTOR_IN2);   // IN2 LOW - Rotate motor one way
+         }
+         else // If LDR2 is greater than LDR1, move motor the other way
+         {
+            output_low(MOTOR_IN1);   // IN1 LOW
+            output_high(MOTOR_IN2);  // IN2 HIGH - Rotate motor the other way
+         }
+         
+         output_high(GREEN_LED);   // Green LED ON (motor running)
+         output_low(RED_LED);      // Red LED OFF
+      }
+      else
+      {
+         // Stop motor if difference is less than the threshold
+         output_low(MOTOR_IN1);    // Stop motor (both IN1 and IN2 low)
+         output_low(MOTOR_IN2);
+         
+         output_high(RED_LED);     // Red LED ON (motor stopped)
+         output_low(GREEN_LED);    // Green LED OFF
+      }
+      
+      delay_ms(500);  // Update every half second
+   }
+}
+

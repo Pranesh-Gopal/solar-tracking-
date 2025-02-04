@@ -1,0 +1,111 @@
+#include <16F877A.h>
+#device ADC=10
+
+#FUSES NOWDT                    //No Watch Dog Timer
+#FUSES PUT                      //Power Up Timer
+#FUSES NOBROWNOUT               //No brownout reset
+#FUSES NOLVP                    //No low voltage prgming, B3(PIC16) or B5(PIC18) used for I/O
+
+#use delay(crystal=4MHz)
+
+#define LCD_ENABLE_PIN PIN_D2
+#define LCD_RS_PIN PIN_D0
+#define LCD_RW_PIN PIN_D1
+#define LCD_DATA4 PIN_D4
+#define LCD_DATA5 PIN_D5
+#define LCD_DATA6 PIN_D6
+#define LCD_DATA7 PIN_D7
+
+#include <lcd.c>
+#include <math.h>
+
+#define SERVO_PIN PIN_B0  
+#define GREEN_LED PIN_B7  
+#define RED_LED PIN_B6    
+
+int16 LDR1, LDR2;  
+int16 diff;        
+const int16 threshold = 50;  
+int16 sayac1 = 1500, sayac2 = 1500;  
+
+void move_servo()
+{
+   output_high(SERVO_PIN);
+   delay_us(sayac1);  
+   output_low(SERVO_PIN);
+   delay_us(20000 - sayac1);  
+}
+
+void main()
+{
+  
+   setup_adc_ports(ALL_ANALOG);
+   setup_adc(ADC_CLOCK_INTERNAL);
+   
+   
+   lcd_init();
+   
+   
+   set_tris_b(0x00);      // Set PORT B as output for servo and LEDs
+   output_low(SERVO_PIN); 
+   output_low(GREEN_LED); 
+   output_low(RED_LED);   
+   
+   while(TRUE)
+   {
+      
+      set_adc_channel(2);
+      delay_ms(10);
+      LDR1 = read_adc();
+      
+      
+      set_adc_channel(3);
+      delay_ms(10);
+      LDR2 = read_adc();
+      
+      
+      diff = abs(LDR1 - LDR2);
+      
+     
+      lcd_gotoxy(1, 1);
+      printf(lcd_putc, "LDR1: %4lu", LDR1);
+      lcd_gotoxy(1, 2);
+      printf(lcd_putc, "LDR2: %4lu", LDR2);
+
+
+      if(diff >= threshold)
+      {
+         if(LDR1 > LDR2)
+         {
+           
+            output_low(RED_LED);
+            output_high(GREEN_LED);
+            move_servo();
+            sayac2 = sayac1;
+            if(sayac1 <= 2600) {
+               sayac1 = sayac1 + 10;  
+            }
+         }
+         else if(LDR2 > LDR1)
+         {
+        
+            output_low(RED_LED);
+            output_high(GREEN_LED);
+            move_servo();
+            sayac1 = sayac2;
+            if(sayac2 >= 600) {
+               sayac2 = sayac2 - 10; 
+            }
+         }
+      }
+      else
+      {
+         
+         output_high(RED_LED);  
+         output_low(GREEN_LED); 
+      }
+      
+      delay_ms(500);  
+   }
+}
+
